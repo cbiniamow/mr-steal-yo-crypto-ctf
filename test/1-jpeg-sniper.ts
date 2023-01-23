@@ -10,33 +10,30 @@ let attacker: Signer;
 let o1: Signer;
 let o2: Signer;
 let admin: Signer; // should not be used
-let flatLaunchpeg: Contract; 
-let startBlock: Number;
+let flatLaunchpeg: Contract;
+let startBlock: number;
 
 /// preliminary state
 before(async () => {
+	accounts = await ethers.getSigners();
+	[attacker, o1, o2, admin] = accounts;
 
-  accounts = await ethers.getSigners();
-  [attacker, o1, o2, admin] = accounts;
+	let flatLaunchpegFactory = await ethers.getContractFactory("FlatLaunchpeg");
+	flatLaunchpeg = await flatLaunchpegFactory.connect(admin).deploy(69, 5, 5);
 
-  let flatLaunchpegFactory = await ethers.getContractFactory('FlatLaunchpeg')
-  flatLaunchpeg = await flatLaunchpegFactory.connect(admin).deploy(69,5,5)
-
-  startBlock = await ethers.provider.getBlockNumber()
-  
+	startBlock = await ethers.provider.getBlockNumber();
 });
 
 it("solves the challenge", async function () {
-
-  // implement solution here
-
+	const hackFactory = await ethers.getContractFactory("JpegSniperHack");
+	await hackFactory.connect(attacker).deploy(flatLaunchpeg.address);
 });
 
 /// expected final state
 after(async () => {
-
-  expect(await flatLaunchpeg.totalSupply()).to.be.equal(69)
-  expect(await flatLaunchpeg.balanceOf(await attacker.getAddress())).to.be.equal(69)
-  expect(await ethers.provider.getBlockNumber()).to.be.equal(startBlock+1)
-  
+	expect(await flatLaunchpeg.totalSupply()).to.be.equal(69);
+	expect(
+		await flatLaunchpeg.balanceOf(await attacker.getAddress())
+	).to.be.equal(69);
+	expect(await ethers.provider.getBlockNumber()).to.be.equal(startBlock + 1);
 });

