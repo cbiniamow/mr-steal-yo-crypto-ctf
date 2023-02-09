@@ -20,7 +20,7 @@ contract BondingCurveHack {
         IUniswapV2Pair pair, 
         IEminenceCurrency base,
         IEminenceCurrency token, 
-        uint256 amount, 
+        uint256 amount
     ) external {
         bytes memory data = abi.encode(base, token, msg.sender);
         pair.swap(0, amount, address(this), data);

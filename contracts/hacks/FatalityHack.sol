@@ -43,9 +43,9 @@ contract FatalityHack {
     }
 
     function uniswapV2Call(
-        address _sender,
+        address, /*_sender*/
         uint256 _amount0,
-        uint256 _amount1,
+        uint256, /*_amount1*/
         bytes calldata _data
     ) external {
         if (msg.sender == address(USDC_DAI)) {
